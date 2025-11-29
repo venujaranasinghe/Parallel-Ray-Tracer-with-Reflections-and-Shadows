@@ -1,0 +1,163 @@
+╔══════════════════════════════════════════════════════════════════════╗
+║                   QUICK REFERENCE - SCREENSHOTS                      ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+┌──────────────────────────────────────────────────────────────────────┐
+│ OPENMP SCREENSHOTS (4 total)                                         │
+└──────────────────────────────────────────────────────────────────────┘
+
+  Screenshot 1: Terminal with 1 thread
+  ─────────────────────────────────────
+  cd OpenMP
+  export OMP_NUM_THREADS=1
+  ./raytrace_openmp
+  
+  Capture: Output showing "Number of threads: 1" and timing
+  
+  
+  Screenshot 2: Terminal with 4 threads  
+  ─────────────────────────────────────
+  export OMP_NUM_THREADS=4
+  ./raytrace_openmp
+  
+  Capture: Output showing "Number of threads: 4" and timing
+  
+  
+  Screenshot 3: Terminal with 16 threads
+  ─────────────────────────────────────
+  export OMP_NUM_THREADS=16
+  ./raytrace_openmp
+  
+  Capture: Output showing "Number of threads: 16" and timing
+  
+  
+  Screenshot 4: Performance Graphs
+  ─────────────────────────────────────
+  open ../benchmark_results/openmp_performance_graphs.png
+  
+  Capture: Both graphs (Execution Time & Speedup)
+
+
+┌──────────────────────────────────────────────────────────────────────┐
+│ MPI SCREENSHOTS (4 total)                                            │
+└──────────────────────────────────────────────────────────────────────┘
+
+  Screenshot 5: Terminal with 1 process
+  ─────────────────────────────────────
+  cd MPI
+  mpirun -np 1 ./raytrace_mpi
+  
+  Capture: "Starting MPI Ray Tracer with 1 processes" and timing
+  
+  
+  Screenshot 6: Terminal with 4 processes
+  ─────────────────────────────────────
+  mpirun -np 4 ./raytrace_mpi
+  
+  Capture: "Starting MPI Ray Tracer with 4 processes" and timing
+  
+  
+  Screenshot 7: Terminal with 16 processes
+  ─────────────────────────────────────
+  mpirun --oversubscribe -np 16 ./raytrace_mpi
+  
+  Capture: "Starting MPI Ray Tracer with 16 processes" and timing
+  
+  
+  Screenshot 8: Performance Graphs
+  ─────────────────────────────────────
+  open ../benchmark_results/mpi_performance_graphs.png
+  
+  Capture: Both graphs (Execution Time & Speedup)
+
+
+┌──────────────────────────────────────────────────────────────────────┐
+│ CUDA SCREENSHOTS (5-6 total)                                         │
+└──────────────────────────────────────────────────────────────────────┘
+
+  In Google Colab - Test 6 configurations:
+  
+  Screenshot 9: Config 1 - blocks(32,32), threads(16,16)
+  Screenshot 10: Config 3 - blocks(50,38), threads(16,16)  
+  Screenshot 11: Config 6 - blocks(25,19), threads(32,32)
+  Screenshot 12: Results table with all 6 configs
+  Screenshot 13: Execution time graph
+  Screenshot 14: Speedup graph
+  
+  See CUDA_EVALUATION_GUIDE.md for full details
+
+
+╔══════════════════════════════════════════════════════════════════════╗
+║                        AUTOMATED METHOD                              ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+  Run this script for interactive screenshot guide:
+  
+  ./screenshot_helper.sh
+  
+  The script will:
+  ✓ Run each configuration one by one
+  ✓ Pause after each run for you to take screenshot
+  ✓ Guide you through all OpenMP and MPI screenshots
+
+
+╔══════════════════════════════════════════════════════════════════════╗
+║                      PERFORMANCE DATA SUMMARY                        ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+  OPENMP:
+  ───────
+  1 thread   → 0.09s (baseline)
+  2 threads  → 0.03s (3.00x speedup)
+  4 threads  → 0.02s (4.50x speedup)
+  8 threads  → 0.01s (9.00x speedup) ← Best performance
+  16 threads → 0.01s (9.00x speedup)
+  
+  MPI:
+  ────
+  1 process   → 0.05s (baseline)
+  2 processes → 0.05s (1.00x speedup)
+  4 processes → 0.03s (1.67x speedup)
+  8 processes → 0.02s (2.50x speedup)
+  16 processes → 0.01s (5.00x speedup) ← Best performance
+
+
+╔══════════════════════════════════════════════════════════════════════╗
+║                           FILES TO INCLUDE                           ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+  In Your Report:
+  ───────────────
+  ☑ benchmark_results/openmp_performance_graphs.png
+  ☑ benchmark_results/mpi_performance_graphs.png
+  ☑ 3 OpenMP terminal screenshots
+  ☑ 3 MPI terminal screenshots
+  ☑ 3-4 CUDA configuration screenshots
+  ☑ 2 CUDA performance graphs/tables
+  
+  Optional (for reference):
+  ─────────────────────────
+  ○ OpenMP/benchmark_results/openmp_results.csv
+  ○ MPI/benchmark_results/mpi_results.csv
+
+
+╔══════════════════════════════════════════════════════════════════════╗
+║                         TROUBLESHOOTING                              ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+  Problem: Graphs not showing values
+  Solution: Re-run: python3 generate_graphs.py
+  
+  Problem: Need to re-run benchmarks
+  Solution: cd OpenMP && ./benchmark_detailed.sh
+           cd ../MPI && ./benchmark_detailed.sh
+  
+  Problem: MPI won't run with 16 processes
+  Solution: Add --oversubscribe flag
+           mpirun --oversubscribe -np 16 ./raytrace_mpi
+
+
+╔══════════════════════════════════════════════════════════════════════╗
+║                          TOTAL SCORE: 18 MARKS                       ║
+║                   OpenMP: 6 | MPI: 6 | CUDA: 6                       ║
+╚══════════════════════════════════════════════════════════════════════╝
