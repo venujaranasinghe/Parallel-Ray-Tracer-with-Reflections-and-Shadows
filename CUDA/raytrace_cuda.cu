@@ -1,8 +1,13 @@
+%%writefile raytrace_cuda.cu
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
 #include <float.h>
 #include <time.h>
+#include <vector>
+#include <iostream>
+#include <fstream>
 
 // Vector structure
 typedef struct {
@@ -27,6 +32,15 @@ typedef struct {
     Vec3 position;
     Vec3 color;
 } Light;
+
+// Benchmark result structure
+typedef struct {
+    int blockSizeX;
+    int blockSizeY;
+    int threadsPerBlock;
+    double executionTime;
+    double speedup;
+} BenchmarkResult;
 
 // Scene configuration
 #define IMAGE_WIDTH 800
@@ -240,8 +254,92 @@ void write_ppm(const char* filename, Vec3* image) {
     printf("Image saved as %s\n", filename);
 }
 
+// Run benchmark with specific block configuration
+BenchmarkResult run_benchmark(int blockSizeX, int blockSizeY, Sphere* d_spheres, Light* d_lights, 
+                             Sphere* spheres, Light* lights, double baseline_time) {
+    BenchmarkResult result;
+    result.blockSizeX = blockSizeX;
+    result.blockSizeY = blockSizeY;
+    result.threadsPerBlock = blockSizeX * blockSizeY;
+    
+    // Allocate device memory for image
+    Vec3* d_image;
+    cudaMalloc(&d_image, IMAGE_WIDTH * IMAGE_HEIGHT * sizeof(Vec3));
+    
+    // Configure kernel launch parameters
+    dim3 blockSize(blockSizeX, blockSizeY);
+    dim3 gridSize((IMAGE_WIDTH + blockSize.x - 1) / blockSize.x,
+                  (IMAGE_HEIGHT + blockSize.y - 1) / blockSize.y);
+    
+    // Create CUDA events for timing
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+    
+    // Warm-up run
+    ray_trace_kernel<<<gridSize, blockSize>>>(d_image, d_spheres, d_lights, MAX_SPHERES, MAX_LIGHTS);
+    cudaDeviceSynchronize();
+    
+    // Timed run
+    cudaEventRecord(start);
+    
+    // Run multiple iterations for more accurate timing
+    int iterations = 3;
+    for (int i = 0; i < iterations; i++) {
+        ray_trace_kernel<<<gridSize, blockSize>>>(d_image, d_spheres, d_lights, MAX_SPHERES, MAX_LIGHTS);
+    }
+    
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+    
+    float milliseconds = 0;
+    cudaEventElapsedTime(&milliseconds, start, stop);
+    
+    // Calculate average time per iteration in seconds
+    result.executionTime = (milliseconds / 1000.0) / iterations;
+    
+    // Calculate speedup relative to baseline
+    if (baseline_time > 0) {
+        result.speedup = baseline_time / result.executionTime;
+    } else {
+        result.speedup = 1.0;
+    }
+    
+    // Check for errors
+    cudaError_t err = cudaGetLastError();
+    if (err != cudaSuccess) {
+        printf("CUDA error for block size (%d, %d): %s\n", blockSizeX, blockSizeY, cudaGetErrorString(err));
+        result.executionTime = -1;
+        result.speedup = 0;
+    }
+    
+    // Cleanup
+    cudaEventDestroy(start);
+    cudaEventDestroy(stop);
+    cudaFree(d_image);
+    
+    return result;
+}
+
+// Export results to CSV
+void export_to_csv(const std::vector<BenchmarkResult>& results, const char* filename) {
+    std::ofstream file(filename);
+    file << "BlockSizeX,BlockSizeY,ThreadsPerBlock,ExecutionTime,Speedup\n";
+    
+    for (const auto& result : results) {
+        file << result.blockSizeX << ","
+             << result.blockSizeY << ","
+             << result.threadsPerBlock << ","
+             << result.executionTime << ","
+             << result.speedup << "\n";
+    }
+    
+    file.close();
+    printf("Results exported to %s\n", filename);
+}
+
 int main() {
-    printf("Starting CUDA Ray Tracer...\n");
+    printf("Starting CUDA Ray Tracer Benchmark...\n");
     printf("Image size: %dx%d\n", IMAGE_WIDTH, IMAGE_HEIGHT);
     
     // Initialize scene on host
@@ -258,61 +356,102 @@ int main() {
         {{5, 3, -2}, {0.8, 0.8, 1.0}}   // Blueish light 2
     };
     
-    // Allocate device memory
+    // Allocate device memory for scene
     Sphere* d_spheres;
     Light* d_lights;
-    Vec3* d_image;
-    
     cudaMalloc(&d_spheres, MAX_SPHERES * sizeof(Sphere));
     cudaMalloc(&d_lights, MAX_LIGHTS * sizeof(Light));
-    cudaMalloc(&d_image, IMAGE_WIDTH * IMAGE_HEIGHT * sizeof(Vec3));
     
     // Copy scene data to device
     cudaMemcpy(d_spheres, spheres, MAX_SPHERES * sizeof(Sphere), cudaMemcpyHostToDevice);
     cudaMemcpy(d_lights, lights, MAX_LIGHTS * sizeof(Light), cudaMemcpyHostToDevice);
     
-    printf("Rendering scene with CUDA...\n");
+    printf("Running benchmarks with different block configurations...\n");
     
-    // Start timing
-    clock_t start_time = clock();
+    // Define block configurations to test
+    std::vector<std::pair<int, int>> blockConfigs = {
+        {1, 1},    // 1 thread per block
+        {2, 2},    // 4 threads per block
+        {4, 4},    // 16 threads per block
+        {8, 4},    // 32 threads per block
+        {8, 8},    // 64 threads per block
+        {16, 8},   // 128 threads per block
+        {16, 16},  // 256 threads per block
+        {32, 16},  // 512 threads per block
+        {32, 32}   // 1024 threads per block (max for most GPUs)
+    };
     
-    // Configure kernel launch parameters
-    dim3 blockSize(16, 16);
-    dim3 gridSize((IMAGE_WIDTH + blockSize.x - 1) / blockSize.x,
-                  (IMAGE_HEIGHT + blockSize.y - 1) / blockSize.y);
+    std::vector<BenchmarkResult> results;
+    double baseline_time = 0;
     
-    // Launch kernel
-    ray_trace_kernel<<<gridSize, blockSize>>>(d_image, d_spheres, d_lights, MAX_SPHERES, MAX_LIGHTS);
-    
-    // Check for kernel errors
-    cudaError_t err = cudaGetLastError();
-    if (err != cudaSuccess) {
-        printf("CUDA error: %s\n", cudaGetErrorString(err));
-        return 1;
+    // Run benchmarks
+    for (const auto& config : blockConfigs) {
+        int blockX = config.first;
+        int blockY = config.second;
+        
+        printf("Testing block size: %dx%d (%d threads/block)... ", blockX, blockY, blockX * blockY);
+        fflush(stdout);
+        
+        BenchmarkResult result = run_benchmark(blockX, blockY, d_spheres, d_lights, spheres, lights, baseline_time);
+        
+        if (result.executionTime > 0) {
+            // Set first successful run as baseline
+            if (baseline_time == 0) {
+                baseline_time = result.executionTime;
+                result.speedup = 1.0;
+            }
+            
+            printf("Time: %.4f s, Speedup: %.2fx\n", result.executionTime, result.speedup);
+            results.push_back(result);
+        } else {
+            printf("FAILED\n");
+        }
     }
     
-    // Wait for kernel to complete
-    cudaDeviceSynchronize();
+    // Export results to CSV
+    export_to_csv(results, "benchmark_results.csv");
     
-    // End timing
-    clock_t end_time = clock();
-    double rendering_time = ((double)(end_time - start_time)) / CLOCKS_PER_SEC;
-    printf("Rendering time: %.2f seconds\n", rendering_time);
+    // Generate one image with optimal configuration for verification
+    if (!results.empty()) {
+        // Find configuration with best speedup
+        int best_index = 0;
+        for (int i = 1; i < results.size(); i++) {
+            if (results[i].speedup > results[best_index].speedup) {
+                best_index = i;
+            }
+        }
+        
+        printf("\nOptimal configuration: %dx%d blocks (%d threads/block)\n",
+               results[best_index].blockSizeX, results[best_index].blockSizeY,
+               results[best_index].threadsPerBlock);
+        printf("Best execution time: %.4f seconds (Speedup: %.2fx)\n",
+               results[best_index].executionTime, results[best_index].speedup);
+        
+        // Generate final image with optimal configuration
+        printf("\nGenerating final image with optimal configuration...\n");
+        Vec3* d_final_image;
+        Vec3* h_final_image = (Vec3*)malloc(IMAGE_WIDTH * IMAGE_HEIGHT * sizeof(Vec3));
+        cudaMalloc(&d_final_image, IMAGE_WIDTH * IMAGE_HEIGHT * sizeof(Vec3));
+        
+        dim3 optimalBlockSize(results[best_index].blockSizeX, results[best_index].blockSizeY);
+        dim3 optimalGridSize((IMAGE_WIDTH + optimalBlockSize.x - 1) / optimalBlockSize.x,
+                            (IMAGE_HEIGHT + optimalBlockSize.y - 1) / optimalBlockSize.y);
+        
+        ray_trace_kernel<<<optimalGridSize, optimalBlockSize>>>(d_final_image, d_spheres, d_lights, MAX_SPHERES, MAX_LIGHTS);
+        cudaDeviceSynchronize();
+        
+        cudaMemcpy(h_final_image, d_final_image, IMAGE_WIDTH * IMAGE_HEIGHT * sizeof(Vec3), cudaMemcpyDeviceToHost);
+        write_ppm("raytrace_optimal.ppm", h_final_image);
+        
+        free(h_final_image);
+        cudaFree(d_final_image);
+    }
     
-    // Allocate host memory for image and copy from device
-    Vec3* h_image = (Vec3*)malloc(IMAGE_WIDTH * IMAGE_HEIGHT * sizeof(Vec3));
-    cudaMemcpy(h_image, d_image, IMAGE_WIDTH * IMAGE_HEIGHT * sizeof(Vec3), cudaMemcpyDeviceToHost);
-    
-    // Save image
-    write_ppm("raytrace_cuda.ppm", h_image);
-    
-    // Free memory
-    free(h_image);
+    // Cleanup
     cudaFree(d_spheres);
     cudaFree(d_lights);
-    cudaFree(d_image);
     
-    printf("CUDA Ray tracing completed!\n");
+    printf("\nBenchmark completed! Results saved to benchmark_results.csv\n");
     
     return 0;
 }

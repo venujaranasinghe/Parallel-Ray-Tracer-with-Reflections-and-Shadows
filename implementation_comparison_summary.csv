@@ -1,0 +1,5 @@
+Implementation,Configuration,Execution Time (s),Speedup,Efficiency (%)
+Serial,Single Thread,0.0628,1.0,100.0
+OpenMP (Best),8 threads,0.0102,6.156862745098039,38.48039215686274
+MPI (Best),8 processes,0.0206,3.048543689320388,38.106796116504846
+CUDA (Best),32 threads/block (8x4),0.003062,34.088,106.525
