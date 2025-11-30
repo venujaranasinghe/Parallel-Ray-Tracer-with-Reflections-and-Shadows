@@ -2,6 +2,8 @@
 
 A high-performance ray tracing implementation with multiple parallelization strategies: Serial, OpenMP, MPI, and CUDA.
 
+> **📊 Benchmark performance and generate graphs:** → **[BENCHMARKING.md](BENCHMARKING.md)**
+
 ## 🎯 Project Overview
 
 This project implements a photorealistic ray tracer that renders 3D scenes with:
@@ -70,9 +72,24 @@ nvcc -o raytrace_cuda raytrace_cuda.cu
 ./raytrace_cuda
 ```
 
-## 📊 Performance Comparison
+## 📊 Performance Benchmarking
 
-Typical results on modern hardware:
+### Quick Benchmark
+
+**Run all benchmarks and generate graphs:** → **[See BENCHMARKING.md](BENCHMARKING.md)**
+
+```bash
+./run_all_benchmarks.sh
+```
+
+This will:
+- Test OpenMP with 1, 2, 4, 8, 16 threads
+- Test MPI with 1, 2, 4, 8, 16 processes  
+- Generate graphs showing execution time and speedup
+
+**Output:** `openmp_performance.png` and `mpi_performance.png`
+
+### Typical Results
 
 | Implementation | Time (s) | Speedup | Efficiency |
 |---------------|----------|---------|------------|
@@ -98,15 +115,16 @@ Typical results on modern hardware:
 
 ## 📖 Documentation
 
+### Performance Testing
+- **[BENCHMARKING.md](BENCHMARKING.md)** - How to run benchmarks and generate graphs
+
+### Implementation Guides
 Each implementation includes:
 - **Source code** with detailed comments
 - **Makefile** for easy compilation
 - **README.md** with implementation details
-- **Benchmark scripts** for performance testing
-- **Comparison scripts** to evaluate speedup
 
-### Detailed Guides
-- `MPI/README.md` - MPI implementation and usage
+### CUDA Guides
 - `CUDA/HOW_TO_RUN.md` - Simple Google Colab guide
 - `CUDA/README_COLAB.md` - Detailed Colab instructions
 - `CUDA/QUICKSTART.md` - Quick reference
